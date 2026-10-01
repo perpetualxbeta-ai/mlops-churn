@@ -1,0 +1,113 @@
+schema: '2.0'
+stages:
+  generate:
+    cmd: python -m churn.data.generate
+    deps:
+    - path: src/churn/data/generate.py
+      hash: md5
+      md5: 94e3b1f5d74e4368c28dc1a83fdecb75
+      size: 3327
+    params:
+      params.yaml:
+        data.n_rows: 7000
+        data.seed: 42
+    outs:
+    - path: data/raw/customers.csv
+      hash: md5
+      md5: 3773497916574fdbcdc17f17ff9ad44d
+      size: 408533
+  prepare:
+    cmd: python -m churn.data.prepare
+    deps:
+    - path: data/raw/customers.csv
+      hash: md5
+      md5: 3773497916574fdbcdc17f17ff9ad44d
+      size: 408533
+    - path: src/churn/data/prepare.py
+      hash: md5
+      md5: b51e9008cc3ab1803e4d0aa97a9d6a0f
+      size: 787
+    - path: src/churn/data/validate.py
+      hash: md5
+      md5: 498fd6769eb61b55327c5d6a47686eb5
+      size: 1296
+    params:
+      params.yaml:
+        data.seed: 42
+        data.test_size: 0.2
+    outs:
+    - path: data/processed/test.csv
+      hash: md5
+      md5: 1294b094cad980aaa1d982404d594413
+      size: 81843
+    - path: data/processed/train.csv
+      hash: md5
+      md5: 49d89171730e8478e2c124814d2aaf13
+      size: 326808
+  train:
+    cmd: python -m churn.train
+    deps:
+    - path: data/processed/train.csv
+      hash: md5
+      md5: 49d89171730e8478e2c124814d2aaf13
+      size: 326808
+    - path: src/churn/model.py
+      hash: md5
+      md5: d45e6bd0e8daa4a9d5a8015aa5c810e5
+      size: 1350
+    - path: src/churn/train.py
+      hash: md5
+      md5: 08d02f3ecf5e7f47bfddb782812ab7b5
+      size: 2729
+    params:
+      params.yaml:
+        train:
+          model: random_forest
+          random_state: 42
+          logistic_regression:
+            C: 1.0
+            max_iter: 1000
+          random_forest:
+            n_estimators: 200
+            max_depth: 8
+            min_samples_leaf: 5
+    outs:
+    - path: models/model.joblib
+      hash: md5
+      md5: 04e6188a3515ef593e37fee2aad2a64b
+      size: 4649346
+    - path: models/run.json
+      hash: md5
+      md5: 908aeb3403033934c13620b3efc18841
+      size: 46
+    - path: reports/train_metrics.json
+      hash: md5
+      md5: 1af9dddfc2bed135cd3f43337ccf9411
+      size: 31
+  evaluate:
+    cmd: python -m churn.evaluate
+    deps:
+    - path: data/processed/test.csv
+      hash: md5
+      md5: 1294b094cad980aaa1d982404d594413
+      size: 81843
+    - path: models/model.joblib
+      hash: md5
+      md5: 04e6188a3515ef593e37fee2aad2a64b
+      size: 4649346
+    - path: models/run.json
+      hash: md5
+      md5: 908aeb3403033934c13620b3efc18841
+      size: 46
+    - path: src/churn/evaluate.py
+      hash: md5
+      md5: 3a4fbbad6f90ebf09a5f14e8993f9a48
+      size: 2454
+    params:
+      params.yaml:
+        evaluate.min_roc_auc: 0.75
+    outs:
+    - path: reports/metrics.json
+      hash: md5
+      md5: 789a384cecfe18faadd9f60a5f682cb2
+      size: 104

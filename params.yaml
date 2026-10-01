@@ -1,0 +1,30 @@
+# Single source of truth for the pipeline. DVC tracks these values:
+# change one, run `dvc repro`, and only the affected stages re-run.
+
+data:
+  n_rows: 7000          # rows of synthetic customer data to generate
+  seed: 42
+  test_size: 0.2
+
+train:
+  model: random_forest  # random_forest | logistic_regression
+  random_state: 42
+  logistic_regression:
+    C: 1.0
+    max_iter: 1000
+  random_forest:
+    n_estimators: 200
+    max_depth: 8
+    min_samples_leaf: 5
+
+evaluate:
+  # Quality gate: CI fails if the new model scores below this.
+  min_roc_auc: 0.75
+
+mlflow:
+  experiment: churn
+  registered_model: churn-classifier
+
+monitoring:
+  # Fail the drift check if more than this share of columns drifted.
+  max_drift_share: 0.3

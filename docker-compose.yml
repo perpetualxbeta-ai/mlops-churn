@@ -1,0 +1,31 @@
+# Local "production" stack:
+#   api     -> http://localhost:8000/docs   (the model as a service)
+#   mlflow  -> http://localhost:5000        (shared tracking server + model registry)
+#
+# To log training runs to this server instead of the local mlflow.db:
+#   MLFLOW_TRACKING_URI=http://localhost:5000 dvc repro --force
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./logs:/app/logs   # prediction log on the host, so the drift check can read it
+    restart: unless-stopped
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v3.16.1
+    command: >
+      mlflow server
+      --host 0.0.0.0 --port 5000
+      --backend-store-uri sqlite:////mlflow/mlflow.db
+      --artifacts-destination /mlflow/artifacts
+    ports:
+      - "5000:5000"
+    volumes:
+      - mlflow-data:/mlflow
+    restart: unless-stopped
+
+volumes:
+  mlflow-data:

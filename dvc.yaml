@@ -1,0 +1,55 @@
+# The ML pipeline as a DAG. `dvc repro` runs only stages whose deps/params changed.
+# `dvc dag` draws it; `dvc metrics show` / `dvc params diff` compare experiments.
+
+stages:
+  generate:
+    cmd: python -m churn.data.generate
+    deps:
+      - src/churn/data/generate.py
+    params:
+      - data.n_rows
+      - data.seed
+    outs:
+      - data/raw/customers.csv
+
+  prepare:
+    cmd: python -m churn.data.prepare
+    deps:
+      - data/raw/customers.csv
+      - src/churn/data/prepare.py
+      - src/churn/data/validate.py
+    params:
+      - data.test_size
+      - data.seed
+    outs:
+      - data/processed/train.csv
+      - data/processed/test.csv
+
+  train:
+    cmd: python -m churn.train
+    deps:
+      - data/processed/train.csv
+      - src/churn/train.py
+      - src/churn/model.py
+    params:
+      - train
+    outs:
+      - models/model.joblib
+      - models/run.json      # MLflow run id, read by evaluate
+    metrics:
+      - reports/train_metrics.json:
+          cache: false
+
+  evaluate:
+    cmd: python -m churn.evaluate
+    always_changed: true   # the quality gate must run on every `dvc repro`, never be skipped
+    deps:
+      - data/processed/test.csv
+      - models/model.joblib
+      - models/run.json
+      - src/churn/evaluate.py
+    params:
+      - evaluate.min_roc_auc
+    metrics:
+      - reports/metrics.json:
+          cache: false

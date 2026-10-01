@@ -1,0 +1,78 @@
+# Monitoring -> retraining loop (stage 7).
+#
+# Run it from the Actions tab ("Run workflow"). Choose simulate_drift=true to watch
+# the drift check fail and trigger a retrain. Uncomment `schedule` to run it daily.
+#
+# In a real system the "current" data would come from your production prediction
+# log or warehouse, and retraining would use freshly labelled data.
+name: Monitor & retrain
+
+on:
+  workflow_dispatch:
+    inputs:
+      simulate_drift:
+        description: "Simulate a shifted customer population"
+        type: boolean
+        default: true
+  # schedule:
+  #   - cron: "0 1 * * *" # daily at 01:00 UTC
+
+env:
+  MLFLOW_DISABLE_AGENT_HINT: "1"
+
+jobs:
+  drift-check:
+    runs-on: ubuntu-latest
+    outputs:
+      drift: ${{ steps.check.outputs.drift }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e ".[train,monitor]"
+      - name: Rebuild reference data
+        run: dvc repro prepare
+      - name: Collect "production" data
+        run: |
+          FLAG=""
+          if [ "${{ inputs.simulate_drift }}" != "false" ]; then FLAG="--drift"; fi
+          python -m churn.data.generate $FLAG --n-rows 1000 --seed 2024 --out data/simulated/current.csv
+      - id: check
+        name: Drift check
+        run: |
+          if python -m churn.monitoring.drift --current data/simulated/current.csv; then
+            echo "drift=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "drift=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo '## Drift summary' >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat reports/drift.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: drift-report
+          path: reports/drift.*
+
+  retrain:
+    needs: drift-check
+    if: needs.drift-check.outputs.drift == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e ".[train]"
+      - name: Retrain & re-run quality gate
+        run: dvc repro --force
+      - run: dvc metrics show --md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retrained-model
+          path: |
+            models/model.joblib
+            reports/metrics.json

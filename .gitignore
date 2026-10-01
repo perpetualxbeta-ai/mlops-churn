@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# MLflow (local tracking store and artifacts)
+mlflow.db
+mlruns/
+mlartifacts/
+
+# Runtime outputs
+logs/
+data/simulated/
+reports/drift.html
+reports/drift.json
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
